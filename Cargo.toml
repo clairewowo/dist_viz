@@ -1,0 +1,14 @@
+[package]
+name = "dist_viz"
+version = "0.1.0"
+edition = "2024"
+
+[dependencies]
+hdf5 = { package = "hdf5-metno", version = "0.10", features = ["static", "zlib"] }
+anndists = { version = "0.1.4", features = ["stdsimd"] }
+rand = "0.8"
+ndarray = { version = "0.16" }
+log = { version = "0.4" }
+env_logger = "0.10"
+rayon = "1.10"
+plotters = "0.3.7"
