@@ -47,6 +47,9 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
         .par_iter()
         .for_each(|v1| {
             for v2 in &sample {
+                if v1 == v2 {
+                    continue;
+                }
                 let dist = euclid(v1, v2);
                 let bin = (dist / bin_width).floor().min(bins as f32 - 1.0) as usize;
                 let mut counts_lock = counts.lock().unwrap();
