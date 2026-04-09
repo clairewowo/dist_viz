@@ -37,24 +37,41 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
         .map(|(vec_f32, _)| vec_f32.clone()) // extract Vec<f32> and clone
         .collect();
 
-    // Define number of bins
-    let bins = 20;
-    let bin_width = 1.0 / bins as f32;
-
-    // calculate pairwise distances, place into bins (0 to 19)
-    let mut counts = Mutex::new(vec![0; bins]);
-    sample
+    // comput epairwise distances
+    let distances: Vec<f32> = sample
         .par_iter()
-        .for_each(|v1| {
+        .flat_map(|v1| {
+            let mut local = Vec::with_capacity(sample.len()); // thread-local vector
             for v2 in &sample {
-                if v1 == v2 {
-                    continue;
+                if v2 != v1 {
+                    let dist = euclid(v1, v2);
+                    local.push(dist); // compute & store in local vec
                 }
-                let dist = euclid(v1, v2);
-                let bin = (dist / bin_width).floor().min(bins as f32 - 1.0) as usize;
-                let mut counts_lock = counts.lock().unwrap();
-                counts_lock[bin] += 1;
             }
+            local
+        })
+        .collect();
+
+    let (min, max) = distances
+        .par_iter()
+        .cloned()
+        .map(|x| (x, x))
+        .reduce(
+            || (f32::INFINITY, f32::NEG_INFINITY),
+            |a, b| (a.0.min(b.0), a.1.max(b.1)),
+        );
+
+    // place into bins (0 to 19)
+    let bins = 20;
+    let mut counts = Mutex::new(vec![0; bins]);
+    let bin_width = (max - min) / bins as f32;
+
+    distances
+        .par_iter()
+        .for_each(|dist| {
+            let bin = ((dist - min) / bin_width).floor().min(bins as f32 - 1.0) as usize;
+            let mut counts_lock = counts.lock().unwrap();
+            counts_lock[bin] += 1;
         });
     let counts = counts.into_inner().unwrap();
 
@@ -70,24 +87,14 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
         .margin(20)
         .x_label_area_size(40)
         .y_label_area_size(40)
-        .build_cartesian_2d(0..bins as i32, 0..max_count as i32)?;
+        .build_cartesian_2d(min..max, 0..max_count as i32)?;
     
     chart.configure_mesh().draw()?;
-    // Draw bars
-    // for (i, &count) in counts.iter().enumerate() {
-    //     let x0 = i as f32 * bin_width;
-    //     let x1 = x0 + bin_width;
-    //     
-    //     chart.draw_series(std::iter::once(Rectangle::new(
-    //         [(x0 as i32, 0), (x1 as i32, count as i32)],
-    //         BLUE.filled(),
-    //     )))?;
-    // }
-
+    
     for (i, &count) in counts.iter().enumerate() {
         println!("count for bin {}: {}", i, count);
         chart.draw_series(std::iter::once(Rectangle::new(
-            [(i as i32, 0), (i as i32 + 1, count as i32)],
+            [(min + i as f32 * bin_width, 0), (min + bin_width * (i as f32 + 1.0), count as i32)],
             BLUE.filled(),
         )))?;
     }
