@@ -32,7 +32,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
 
     let mut query_comparison = false;
     if args.len() == 3 {
-        query_comparison = args[3] == "query";
+        query_comparison = args[2] == "query";
     }
 
     let distances: Vec<f32>;
