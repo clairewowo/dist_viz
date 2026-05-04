@@ -30,15 +30,22 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
     });
     let sample_size = 5000;
 
-    // sample points
-    let mut rng = thread_rng();
-    let sample: Vec<Vec<f32>> = anndata.train_data
-        .choose_multiple(&mut rng, sample_size) // pick references to tuples
-        .map(|(vec_f32, _)| vec_f32.clone()) // extract Vec<f32> and clone
-        .collect();
+    let mut query_comparison = false;
+    if args.len() == 3 {
+        query_comparison = args[3] == "query";
+    }
 
-    // comput epairwise distances
-    let distances: Vec<f32> = sample
+    let distances: Vec<f32>;
+    // compute pairwise distances
+    if !query_comparison {
+        // sample points
+        let mut rng = thread_rng();
+        let sample: Vec<Vec<f32>> = anndata.train_data
+            .choose_multiple(&mut rng, sample_size) // pick references to tuples
+            .map(|(vec_f32, _)| vec_f32.clone()) // extract Vec<f32> and clone
+            .collect();
+
+        distances = sample
         .par_iter()
         .flat_map(|v1| {
             let mut local = Vec::with_capacity(sample.len()); // thread-local vector
@@ -51,6 +58,30 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
             local
         })
         .collect();
+    }
+    else {
+        let mut rng = thread_rng();
+        let query_sample: Vec<Vec<f32>> = anndata.test_data
+            .choose_multiple(&mut rng, 8000) // pick references to tuples
+            .map(|vec_f32| vec_f32.clone()) // extract Vec<f32> and clone
+            .collect();
+
+        let train_sample: Vec<Vec<f32>> = anndata.train_data
+            .choose_multiple(&mut rng, 3000) // pick references to tuples
+            .map(|(vec_f32, _)| vec_f32.clone()) // extract Vec<f32> and clone
+            .collect();
+
+        distances = train_sample
+            .par_iter()
+            .flat_map(|v_train| {
+                let mut local = Vec::with_capacity(query_sample.len());
+                for v_query in &query_sample {
+                    local.push(euclid(v_train, v_query));
+                }
+                local
+            })
+            .collect();
+    }
 
     let (min, max) = distances
         .par_iter()
